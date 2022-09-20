@@ -676,3 +676,230 @@ BookDao bookDao = ctx.getBean(BookDao.class);
 ```
 
 这种方式就类似我们之前所学习依赖注入中的按类型注入。必须要确保IOC容器中该类型对应的bean对象只能有一个。
+
+#### 2.2.3 容器类层次结构
+
+(1)在IDEA中双击`shift`,输入BeanFactory
+
+![1629985148294](allPicture/1629985148294.png)
+
+(2)点击进入BeanFactory类，ctrl+h,就能查看到如下结构的层次关系
+
+![1629984980781](allPicture/1629984980781.png)
+
+从图中可以看出，容器类也是从无到有根据需要一层层叠加上来的，大家重点理解下这种设计思想。
+
+#### 2.2.4 BeanFactory的使用
+
+使用BeanFactory来创建IOC容器的具体实现方式为:
+
+```java
+public class AppForBeanFactory {
+    public static void main(String[] args) {
+        Resource resources = new ClassPathResource("applicationContext.xml");
+        BeanFactory bf = new XmlBeanFactory(resources);
+        BookDao bookDao = bf.getBean(BookDao.class);
+        bookDao.save();
+    }
+}
+```
+
+为了更好的看出`BeanFactory`和`ApplicationContext`之间的区别，在BookDaoImpl添加如下构造函数:
+
+```java
+public class BookDaoImpl implements BookDao {
+    public BookDaoImpl() {
+        System.out.println("constructor");
+    }
+    public void save() {
+        System.out.println("book dao save ..." );
+    }
+}
+```
+
+如果不去获取bean对象，打印会发现：
+
+* BeanFactory是延迟加载，只有在获取bean对象的时候才会去创建
+
+* ApplicationContext是立即加载，容器加载的时候就会创建bean对象
+
+* ApplicationContext要想成为延迟加载，只需要按照如下方式进行配置
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <beans xmlns="http://www.springframework.org/schema/beans"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+              http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+      <bean id="bookDao" class="com.itheima.dao.impl.BookDaoImpl"  lazy-init="true"/>
+  </beans>
+  ```
+
+**小结**
+
+这一节中所讲的知识点包括:
+
+* 容器创建的两种方式
+
+  * ClassPathXmlApplicationContext[掌握]
+  * FileSystemXmlApplicationContext[知道即可]
+
+* 获取Bean的三种方式
+
+  * getBean("名称"):需要类型转换
+  * getBean("名称",类型.class):多了一个参数
+  * getBean(类型.class):容器中不能有多个该类的bean对象
+
+  上述三种方式，各有各的优缺点，用哪个都可以。
+
+* 容器类层次结构
+
+  * 只需要知晓容器的最上级的父接口为 BeanFactory即可
+
+* BeanFactory
+
+  * 使用BeanFactory创建的容器是延迟加载
+  * 使用ApplicationContext创建的容器是立即加载
+  * 具体BeanFactory如何创建只需要了解即可。
+
+### 2.2 核心容器总结
+
+这节中没有新的知识点，只是对前面知识的一个大总结，共包含如下内容:
+
+#### 2.2.1 容器相关
+
+- BeanFactory是IoC容器的顶层接口，初始化BeanFactory对象时，加载的bean延迟加载
+- ApplicationContext接口是Spring容器的核心接口，初始化时bean立即加载
+- ApplicationContext接口提供基础的bean操作相关方法，通过其他接口扩展其功能
+- ApplicationContext接口常用初始化类
+  - **==ClassPathXmlApplicationContext(常用)==**
+  - FileSystemXmlApplicationContext
+
+#### 2.2.2 bean相关
+
+![1629986510487](allPicture/1629986510487.png)
+
+其实整个配置中最常用的就两个属性==id==和==class==
+
+#### 2.2.1 容器相关
+
+- BeanFactory是IoC容器的顶层接口，初始化BeanFactory对象时，加载的bean延迟加载
+- ApplicationContext接口是Spring容器的核心接口，初始化时bean立即加载
+- ApplicationContext接口提供基础的bean操作相关方法，通过其他接口扩展其功能
+- ApplicationContext接口常用初始化类
+  - **==ClassPathXmlApplicationContext(常用)==**
+  - FileSystemXmlApplicationContext
+
+#### 2.2.2 bean相关
+
+![1629986510487](allPicture/1629986510487-166366606699957.png)
+
+其实整个配置中最常用的就两个属性==id==和==class==。
+
+把scope、init-method、destroy-method框起来的原因是，后面注解在讲解的时候还会用到，所以大家对这三个属性关注下。
+
+#### 2.2.3 依赖注入相关
+
+![1629986848563](allPicture/1629986848563.png)
+
+## 3，IOC/DI注解开发
+
+Spring的IOC/DI对应的配置开发就已经讲解完成，但是使用起来相对来说还是比较复杂的，复杂的地方在==配置文件==。
+
+前面咱们聊Spring的时候说过，Spring可以简化代码的开发，到现在并没有体会到。
+
+所以Spring到底是如何简化代码开发的呢?
+
+要想真正简化开发，就需要用到Spring的注解开发，Spring对注解支持的版本历程:
+
+* 2.0版开始支持注解
+* 2.5版注解功能趋于完善
+* 3.0版支持纯注解开发
+
+关于注解开发，我们会讲解两块内容`注解开发定义bean`和`纯注解开发`。
+
+注解开发定义bean用的是2.5版提供的注解，纯注解开发用的是3.0版提供的注解。
+
+### 3.1 环境准备
+
+在学习注解开发之前，先来准备下案例环境:
+
+- 创建一个Maven项目
+
+- pom.xml添加Spring的依赖
+
+  ```xml
+  <dependencies>
+      <dependency>
+          <groupId>org.springframework</groupId>
+          <artifactId>spring-context</artifactId>
+          <version>5.2.10.RELEASE</version>
+      </dependency>
+  </dependencies>
+  ```
+
+- resources下添加applicationContext.xml
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <beans xmlns="http://www.springframework.org/schema/beans"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+              http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+      <bean id="bookDao" class="com.itheima.dao.impl.BookDaoImpl"/>
+  </beans>
+  ```
+
+- 添加BookDao、BookDaoImpl、BookService、BookServiceImpl类
+
+  ```java
+  public interface BookDao {
+      public void save();
+  }
+  public class BookDaoImpl implements BookDao {
+      public void save() {
+          System.out.println("book dao save ..." );
+      }
+  }
+  public interface BookService {
+      public void save();
+  }
+  
+  public class BookServiceImpl implements BookService {
+      public void save() {
+          System.out.println("book service save ...");
+      }
+  }
+  
+  ```
+
+- 创建运行类App
+
+  ```java
+  public class App {
+      public static void main(String[] args) {
+          ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+          BookDao bookDao = (BookDao) ctx.getBean("bookDao");
+          bookDao.save();
+      }
+  }
+  ```
+
+最终创建好的项目结构如下:
+
+![1629989221808](allPicture/1629989221808.png)
+
+### 3.2 注解开发定义bean
+
+在上述环境的基础上，我们来学一学Spring是如何通过注解实现bean的定义开发?
+
+#### 步骤1:删除原XML配置
+
+将配置文件中的`<bean>`标签删除掉
+
+```xml
+<bean id="bookDao" class="com.itheima.dao.impl.BookDaoImpl"/>
+```
+
+#### 步骤2:Dao上添加注解
+
