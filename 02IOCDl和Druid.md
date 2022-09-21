@@ -2085,4 +2085,23 @@ public DataSource dataSource(BookDao bookDao){
 
 ## 6，Spring整合
 
-课程学习到这里，已经对Spring有一个简单的认识了，Spring有一个容器，叫做IoC容器，里面保存bean。在进行企业级开发的时候，其实除了将自己写的类让Spring管理之外，还有一部分重要的工作就是使用第三方的技术。前面已经讲了如何管理第三方bean了，下面结合IoC和DI，整合2个常用技术，进一步加深对Spring的使用理解。
+课程学习到这里，已经对Spring有一个简单的认识了，Spring有一个容器，叫做IoC容器，里面保存bean。在进行企业级开发的时候，其实除了将自己写的类让Spring管理之外，还有一部分重要的工作就是使用第三方的技术。前面已经讲了如何管理第三方bean了，下面结合==IoC==和==DI==，整合2个常用技术，进一步加深对Spring的使用理解。
+
+### 6.1 Spring整合Mybatis思路分析
+
+#### 6.1.1 环境准备
+
+在准备环境的过程中，我们也来回顾下Mybatis开发的相关内容:
+
+##### 步骤1:准备数据库表
+
+```Java
+create database spring_db character set utf8;
+use spring_db;
+create table tbl_account(
+    id int primary key auto_increment,
+    name varchar(35),
+    money double
+);
+```
+
