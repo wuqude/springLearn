@@ -2105,3 +2105,289 @@ create table tbl_account(
 );
 ```
 
+##### 步骤2:创建项目导入jar包
+
+项目的pom.xml添加相关依赖
+
+```java
+<dependencies>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>5.2.10.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>com.alibaba</groupId>
+        <artifactId>druid</artifactId>
+        <version>1.1.16</version>
+    </dependency>
+    <dependency>
+        <groupId>org.mybatis</groupId>
+        <artifactId>mybatis</artifactId>
+        <version>3.5.6</version>
+    </dependency>
+    <dependency>
+        <groupId>mysql</groupId>
+        <artifactId>mysql-connector-java</artifactId>
+        <version>5.1.47</version>
+    </dependency>
+</dependencies>
+```
+
+##### 步骤3:根据表创建模型类
+
+```java
+public class Account implements Serializable {
+
+    private Integer id;
+    private String name;
+    private Double money;
+	//setter...getter...toString...方法略    
+}
+```
+
+##### 步骤4:创建Dao接口
+
+```java
+public interface AccountDao {
+
+    @Insert("insert into tbl_account(name,money)values(#{name},#{money})")
+    void save(Account account);
+
+    @Delete("delete from tbl_account where id = #{id} ")
+    void delete(Integer id);
+
+    @Update("update tbl_account set name = #{name} , money = #{money} where id = #{id} ")
+    void update(Account account);
+
+    @Select("select * from tbl_account")
+    List<Account> findAll();
+
+    @Select("select * from tbl_account where id = #{id} ")
+    Account findById(Integer id);
+}
+```
+
+##### 步骤5:创建Service接口和实现类
+
+```java
+public interface AccountService {
+
+    void save(Account account);
+
+    void delete(Integer id);
+
+    void update(Account account);
+
+    List<Account> findAll();
+
+    Account findById(Integer id);
+
+}
+
+@Service
+public class AccountServiceImpl implements AccountService {
+
+    @Autowired
+    private AccountDao accountDao;
+
+    public void save(Account account) {
+        accountDao.save(account);
+    }
+
+    public void update(Account account){
+        accountDao.update(account);
+    }
+
+    public void delete(Integer id) {
+        accountDao.delete(id);
+    }
+
+    public Account findById(Integer id) {
+        return accountDao.findById(id);
+    }
+
+    public List<Account> findAll() {
+        return accountDao.findAll();
+    }
+}
+```
+
+##### 步骤6:添加jdbc.properties文件
+
+resources目录下添加，用于配置数据库连接四要素
+
+```properties
+jdbc.driver=com.mysql.jdbc.Driver
+jdbc.url=jdbc:mysql://localhost:3306/spring_db?useSSL=false
+jdbc.username=root
+jdbc.password=root
+```
+
+useSSL:关闭MySQL的SSL连接
+
+##### 步骤7:添加Mybatis核心配置文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <!--读取外部properties配置文件-->
+    <properties resource="jdbc.properties"></properties>
+    <!--别名扫描的包路径-->
+    <typeAliases>
+        <package name="com.itheima.domain"/>
+    </typeAliases>
+    <!--数据源-->
+    <environments default="mysql">
+        <environment id="mysql">
+            <transactionManager type="JDBC"></transactionManager>
+            <dataSource type="POOLED">
+                <property name="driver" value="${jdbc.driver}"></property>
+                <property name="url" value="${jdbc.url}"></property>
+                <property name="username" value="${jdbc.username}"></property>
+                <property name="password" value="${jdbc.password}"></property>
+            </dataSource>
+        </environment>
+    </environments>
+    <!--映射文件扫描包路径-->
+    <mappers>
+        <package name="com.itheima.dao"></package>
+    </mappers>
+</configuration>
+```
+
+##### 步骤8:编写应用程序
+
+```java
+public class App {
+    public static void main(String[] args) throws IOException {
+        // 1. 创建SqlSessionFactoryBuilder对象
+        SqlSessionFactoryBuilder sqlSessionFactoryBuilder = new SqlSessionFactoryBuilder();
+        // 2. 加载SqlMapConfig.xml配置文件
+        InputStream inputStream = Resources.getResourceAsStream("SqlMapConfig.xml.bak");
+        // 3. 创建SqlSessionFactory对象
+        SqlSessionFactory sqlSessionFactory = sqlSessionFactoryBuilder.build(inputStream);
+        // 4. 获取SqlSession
+        SqlSession sqlSession = sqlSessionFactory.openSession();
+        // 5. 执行SqlSession对象执行查询，获取结果User
+        AccountDao accountDao = sqlSession.getMapper(AccountDao.class);
+
+        Account ac = accountDao.findById(1);
+        System.out.println(ac);
+
+        // 6. 释放资源
+        sqlSession.close();
+    }
+}
+```
+
+##### 步骤9:运行程序
+
+![1630136904087](allPicture/1630136904087.png)
+
+#### 6.1.2 整合思路分析
+
+Mybatis的基础环境我们已经准备好了，接下来就得分析下在上述的内容中，哪些对象可以交给Spring来管理?
+
+* Mybatis程序核心对象分析
+
+  ![image-20220922111517927](allPicture/image-20220922111517927.png)
+
+* 从图中可以获取到，真正需要交给Spring管理的是==SqlSessionFactory==
+
+* 整合Mybatis，就是将Mybatis用到的内容交给Spring管理，分析下配置文件
+
+
+![image-20220922111724433](allPicture/image-20220922111724433.png)
+
+**说明:**
+
+* 第一行读取外部properties配置文件，Spring有提供具体的解决方案`@PropertySource`,需要交给Spring
+* 第二行起别名包扫描，为SqlSessionFactory服务的，需要交给Spring
+* 第三行主要用于做连接池，Spring之前我们已经整合了Druid连接池，这块也需要交给Spring
+* 前面三行一起都是为了创建SqlSession对象用的，那么用Spring管理SqlSession对象吗?回忆下SqlSession是由SqlSessionFactory创建出来的，所以只需要将SqlSessionFactory交给Spring管理即可。
+* 第四行是Mapper接口和映射文件[如果使用注解就没有该映射文件]，这个是在获取到SqlSession以后执行具体操作的时候用，所以它和SqlSessionFactory创建的时机都不在同一个时间，可能需要单独管理。
+
+### 6.2 Spring整合Mybatis
+
+前面我们已经分析了Spring与Mybatis的整合，大体需要做两件事，
+
+第一件事是:Spring要管理MyBatis中的SqlSessionFactory
+
+第二件事是:Spring要管理Mapper接口的扫描
+
+具体该如何实现，具体的步骤为:
+
+#### 步骤1:项目中导入整合需要的jar包
+
+```xml
+<dependency>
+    <!--Spring操作数据库需要该jar包-->
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-jdbc</artifactId>
+    <version>5.2.10.RELEASE</version>
+</dependency>
+<dependency>
+    <!--
+		Spring与Mybatis整合的jar包
+		这个jar包mybatis在前面，是Mybatis提供的
+	-->
+    <groupId>org.mybatis</groupId>
+    <artifactId>mybatis-spring</artifactId>
+    <version>1.3.0</version>
+</dependency>
+```
+
+#### 步骤2:创建Spring的主配置类
+
+```java
+//配置类注解
+@Configuration
+//包扫描，主要扫描的是项目中的AccountServiceImpl类
+@ComponentScan("com.itheima")
+public class SpringConfig {
+}
+
+```
+
+#### 步骤3:创建数据源的配置类
+
+在配置类中完成数据源的创建
+
+```java
+public class JdbcConfig {
+    @Value("${jdbc.driver}")
+    private String driver;
+    @Value("${jdbc.url}")
+    private String url;
+    @Value("${jdbc.username}")
+    private String userName;
+    @Value("${jdbc.password}")
+    private String password;
+
+    @Bean
+    public DataSource dataSource(){
+        DruidDataSource ds = new DruidDataSource();
+        ds.setDriverClassName(driver);
+        ds.setUrl(url);
+        ds.setUsername(userName);
+        ds.setPassword(password);
+        return ds;
+    }
+}
+```
+
+#### 步骤4:主配置类中读properties并引入数据源配置类
+
+```java
+@Configuration
+@ComponentScan("com.itheima")
+@PropertySource("classpath:jdbc.properties")
+@Import(JdbcConfig.class)
+public class SpringConfig {
+}
+
+```
