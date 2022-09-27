@@ -691,3 +691,503 @@ execution(* com.itheima.*.*Service.save*(..))
 - 通常**==不使用异常==**作为**==匹配==**规则
 
 (*代表匹配任意,至少有一个参数,..代表匹配任意多个)
+
+4.2 AOP通知类型
+
+前面的案例中，有涉及到如下内容:
+
+![image-20220923143927122](allPicture/image-20220923143927122.png)
+
+它所代表的含义是将`通知`添加到`切入点`方法执行的==前面==。
+
+除了这个注解外，还有没有其他的注解，换个问题就是除了可以在前面加，能不能在其他的地方加?
+
+#### 4.2.1 类型介绍
+
+我们先来回顾下AOP通知:
+
+- AOP通知描述了抽取的共性功能，根据共性功能抽取的位置不同，最终运行代码时要将其加入到合理的位置
+
+通知具体要添加到切入点的哪里?
+
+共提供了5种通知类型:
+
+- 前置通知
+- 后置通知
+- **==环绕通知(重点)==**
+- 返回后通知(了解)
+- 抛出异常后通知(了解)
+
+为了更好的理解这几种通知类型，我们来看一张图
+
+![image-20220923144711556](allPicture/image-20220923144711556.png)
+
+(1)前置通知，追加功能到方法执行前,类似于在代码1或者代码2添加内容
+
+(2)后置通知,追加功能到方法执行后,不管方法执行的过程中有没有抛出异常都会执行，类似于在代码5添加内容
+
+(3)返回后通知,追加功能到方法执行后，只有方法正常执行结束后才进行,类似于在代码3添加内容，如果方法执行抛出异常，返回后通知将不会被添加
+
+(4)抛出异常后通知,追加功能到方法抛出异常后，只有方法执行出异常才进行,类似于在代码4添加内容，只有方法抛出异常后才会被添加
+
+(5)环绕通知,环绕通知功能比较强大，它可以追加功能到方法执行的前后，这也是比较常用的方式，它可以实现其他四种通知类型的功能，具体是如何实现的，需要我们往下学习。
+
+#### 4.2.2 环境准备
+
+- 创建一个Maven项目
+
+- pom.xml添加Spring依赖
+
+  ```xml
+  <dependencies>
+      <dependency>
+          <groupId>org.springframework</groupId>
+          <artifactId>spring-context</artifactId>
+          <version>5.2.10.RELEASE</version>
+      </dependency>
+      <dependency>
+        <groupId>org.aspectj</groupId>
+        <artifactId>aspectjweaver</artifactId>
+        <version>1.9.4</version>
+      </dependency>
+  </dependencies>
+  ```
+
+- 添加BookDao和BookDaoImpl类
+
+  ```java
+  public interface BookDao {
+      public void update();
+      public int select();
+  }
+  
+  @Repository
+  public class BookDaoImpl implements BookDao {
+      public void update(){
+          System.out.println("book dao update ...");
+      }
+      public int select() {
+          System.out.println("book dao select is running ...");
+          return 100;
+      }
+  }
+  ```
+
+- 创建Spring的配置类
+
+  ```java
+  @Configuration
+  @ComponentScan("com.itheima")
+  @EnableAspectJAutoProxy
+  public class SpringConfig {
+  }
+  ```
+
+- 创建通知类
+
+  ```java
+  @Component
+  @Aspect
+  public class MyAdvice {
+      @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+      private void pt(){}
+  
+      public void before() {
+          System.out.println("before advice ...");
+      }
+  
+      public void after() {
+          System.out.println("after advice ...");
+      }
+  
+      public void around(){
+          System.out.println("around before advice ...");
+          System.out.println("around after advice ...");
+      }
+  
+      public void afterReturning() {
+          System.out.println("afterReturning advice ...");
+      }
+      
+      public void afterThrowing() {
+          System.out.println("afterThrowing advice ...");
+      }
+  }
+  ```
+
+- 编写App运行类
+
+  ```java
+  public class App {
+      public static void main(String[] args) {
+          ApplicationContext ctx = new AnnotationConfigApplicationContext(SpringConfig.class);
+          BookDao bookDao = ctx.getBean(BookDao.class);
+          bookDao.update();
+      }
+  }
+  ```
+
+最终创建好的项目结构如下:
+
+![1630167385146](allPicture/1630167385146.png)
+
+#### 4.2.3 通知类型的使用
+
+##### 前置通知
+
+修改MyAdvice,在before方法上添加`@Before注解`
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Before("pt()")
+    //此处也可以写成 @Before("MyAdvice.pt()"),不建议
+    public void before() {
+        System.out.println("before advice ...");
+    }
+}
+```
+
+![image-20220923150332093](allPicture/image-20220923150332093.png)
+
+##### 后置通知
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Before("pt()")
+    public void before() {
+        System.out.println("before advice ...");
+    }
+    @After("pt()")
+    public void after() {
+        System.out.println("after advice ...");
+    }
+}
+```
+
+![image-20220923150513707](allPicture/image-20220923150513707.png)
+
+##### 环绕通知
+
+基本使用
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Around("pt()")
+    public void around(){
+        System.out.println("around before advice ...");
+        System.out.println("around after advice ...");
+    }
+}
+```
+
+![image-20220923150958371](allPicture/image-20220923150958371.png)
+
+运行结果中，通知的内容打印出来，但是原始方法的内容却没有被执行。
+
+因为环绕通知需要在原始方法的前后进行增强，所以环绕通知就必须要能对原始操作进行调用，具体如何实现?
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Around("pt()")
+    public void around(ProceedingJoinPoint pjp) throws Throwable{
+        System.out.println("around before advice ...");
+        //表示对原始操作的调用
+        pjp.proceed();
+        System.out.println("around after advice ...");
+    }
+}
+```
+
+**说明:**proceed()为什么要抛出异常?
+
+原因很简单，看下源码就知道了
+
+![image-20220923151535481](allPicture/image-20220923151535481.png)
+
+注意事项
+
+(1)原始方法有返回值的处理
+
+* 修改MyAdvice,对BookDao中的select方法添加环绕通知，
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Pointcut("execution(int com.itheima.dao.BookDao.select())")
+    private void pt2(){}
+    
+    @Around("pt2()")
+    public void aroundSelect(ProceedingJoinPoint pjp) throws Throwable {
+        System.out.println("around before advice ...");
+        //表示对原始操作的调用
+        pjp.proceed();
+        System.out.println("around after advice ...");
+    }
+}
+```
+
+* 修改App类，调用select方法
+
+```java
+public class App {
+    public static void main(String[] args) {
+        ApplicationContext ctx = new AnnotationConfigApplicationContext(SpringConfig.class);
+        BookDao bookDao = ctx.getBean(BookDao.class);
+        int num = bookDao.select();
+        System.out.println(num);
+    }
+}
+```
+
+运行后会报错，错误内容为:
+
+Exception in thread "main" org.springframework.aop.AopInvocationException: ==Null return value from advice does not match primitive return type for: public abstract int com.itheima.dao.BookDao.select()==
+	at org.springframework.aop.framework.JdkDynamicAopProxy.invoke(JdkDynamicAopProxy.java:226)
+	at com.sun.proxy.$Proxy19.select(Unknown Source)
+	at com.itheima.App.main(App.java:12)
+
+错误大概的意思是:`空的返回不匹配原始方法的int返回`
+
+* void就是返回Null
+* 原始方法就是BookDao下的select方法
+
+所以如果我们使用环绕通知的话，要根据原始方法的返回值来设置环绕通知的返回值，具体解决方案为:
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Pointcut("execution(int com.itheima.dao.BookDao.select())")
+    private void pt2(){}
+    
+    @Around("pt2()")
+    public Object aroundSelect(ProceedingJoinPoint pjp) throws Throwable {
+        System.out.println("around before advice ...");
+        //表示对原始操作的调用
+        Object ret = pjp.proceed();
+        System.out.println("around after advice ...");
+        return ret;
+    }
+}
+```
+
+**说明:**
+
+​	为什么返回的是Object而不是int的主要原因是Object类型更通用。
+
+​	在环绕通知中是可以对原始方法返回值就行修改的。
+
+返回后通知
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Pointcut("execution(int com.itheima.dao.BookDao.select())")
+    private void pt2(){}
+    
+    @AfterReturning("pt2()")
+    public void afterReturning() {
+        System.out.println("afterReturning advice ...");
+    }
+}
+```
+
+![image-20220923153620915](allPicture/image-20220923153620915.png)
+
+**注意：**返回后通知是需要在原始方法`select`正常执行后才会被执行，如果`select()`方法执行的过程中出现了异常，那么返回后通知是不会被执行。后置通知是不管原始方法有没有抛出异常都会被执行。这个案例大家下去可以自己练习验证下。
+
+异常后通知
+
+```java
+@Component
+@Aspect
+public class MyAdvice {
+    @Pointcut("execution(void com.itheima.dao.BookDao.update())")
+    private void pt(){}
+    
+    @Pointcut("execution(int com.itheima.dao.BookDao.select())")
+    private void pt2(){}
+    
+    @AfterReturning("pt2()")
+    public void afterThrowing() {
+        System.out.println("afterThrowing advice ...");
+    }
+}
+```
+
+因为环绕通知是可以控制原始方法执行的，所以我们把增强的代码写在调用原始方法的不同位置就可以实现不同的通知类型的功能，如:
+
+![1630170090945](allPicture/1630170090945.png)
+
+##### 通知类型总结
+
+###### 知识点1：@After
+
+| 名称 | @After                                                       |
+| ---- | ------------------------------------------------------------ |
+| 类型 | 方法注解                                                     |
+| 位置 | 通知方法定义上方                                             |
+| 作用 | 设置当前通知方法与切入点之间的绑定关系，当前通知方法在原始切入点方法后运行 |
+
+###### 知识点2：@AfterReturning  
+
+| 名称 | @AfterReturning                                              |
+| ---- | ------------------------------------------------------------ |
+| 类型 | 方法注解                                                     |
+| 位置 | 通知方法定义上方                                             |
+| 作用 | 设置当前通知方法与切入点之间绑定关系，当前通知方法在原始切入点方法正常执行完毕后执行 |
+
+###### 知识点3：@AfterThrowing  
+
+| 名称 | @AfterThrowing                                               |
+| ---- | ------------------------------------------------------------ |
+| 类型 | 方法注解                                                     |
+| 位置 | 通知方法定义上方                                             |
+| 作用 | 设置当前通知方法与切入点之间绑定关系，当前通知方法在原始切入点方法运行抛出异常后执行 |
+
+###### 知识点4：@Around
+
+| 名称 | @Around                                                      |
+| ---- | ------------------------------------------------------------ |
+| 类型 | 方法注解                                                     |
+| 位置 | 通知方法定义上方                                             |
+| 作用 | 设置当前通知方法与切入点之间的绑定关系，当前通知方法在原始切入点方法前后运行 |
+
+==**环绕通知注意事项**==
+
+1. 环绕通知必须依赖形参ProceedingJoinPoint才能实现对原始方法的调用，进而实现原始方法调用前后同时添加通知
+2. 通知中如果未使用ProceedingJoinPoint对原始方法进行调用将跳过原始方法的执行
+3. 对原始方法的调用可以不接收返回值，通知方法设置成void即可，如果接收返回值，最好设定为Object类型
+4. 原始方法的返回值如果是void类型，通知方法的返回值类型可以设置成void,也可以设置成Object
+5. 由于无法预知原始方法运行后是否会抛出异常，因此环绕通知方法必须要处理Throwable异常
+
+介绍完这么多种通知类型，具体该选哪一种呢?
+
+我们可以通过一些案例加深下对通知类型的学习。
+
+### 4.3 业务层接口执行效率
+
+#### 4.3.1 需求分析
+
+这个需求也比较简单，前面我们在介绍AOP的时候已经演示过:
+
+需求:任意业务层接口执行均可显示其执行效率（执行时长）
+
+这个案例的目的是查看每个业务层执行的时间，这样就可以监控出哪个业务比较耗时，将其查找出来方便优化。
+
+具体实现的思路:
+
+(1) 开始执行方法之前记录一个时间
+
+(2) 执行方法
+
+(3) 执行完方法之后记录一个时间
+
+(4) 用后一个时间减去前一个时间的差值，就是我们需要的结果。
+
+所以要在方法执行的前后添加业务，经过分析我们将采用`环绕通知`。
+
+**说明:**原始方法如果只执行一次，时间太快，两个时间差可能为0，所以我们要执行万次来计算时间差。
+
+#### 4.3.2 环境准备
+
+```javascript
+<template>
+  <div class="p-4">
+    <Trend :data="TrendData1" :num="number1" @get-trend-data="getTrendData" />
+    <Trend :data="TrendData2" :num="number2" @get-trend-data="getTrendData" />
+    <Trend :data="TrendData3" :num="number3" @get-trend-data="getTrendData" />
+  </div>
+</template>
+
+<script setup lang="ts">
+  import { ref } from 'vue';
+  import { Trend } from './modal/echars';
+  import { getMonitorInfo } from '/@/api/finance/chargeOrder';
+  const TrendData1 = ref();
+  const TrendData2 = ref();
+  const TrendData3 = ref();
+
+  const number1 = ref();
+  const number2 = ref();
+  const number3 = ref();
+
+  const getTrendData = async () => {
+    const TrendResult = await getMonitorInfo('220923104235897330');
+    const num1 = 1;
+    const num2 = 2;
+    const num3 = 3;
+    console.log(TrendResult, 'TrendData的元素');
+
+    TrendData1.value = TrendResult.data;
+
+    TrendData2.value = TrendResult.data;
+    TrendData3.value = TrendResult.data;
+
+    number1.value = num1;
+    number2.value = num2;
+    number3.value = num3;
+  };
+  // const getTrendData2 = async () => {
+  //   const TrendResult = await getMonitorInfo('220923104235897330');
+  //   TrendData2.value = TrendResult.data;
+  //   const num = 2;
+  //   number2.value = num;
+  // };
+  // const getTrendData3 = async () => {
+  //   const TrendResult = await getMonitorInfo('220923104235897330');
+  //   TrendData3.value = TrendResult.data;
+  //   const num = 3;
+  //   number3.value = num;
+  // };
+
+  getTrendData();
+  // getTrendData2();
+  // getTrendData3();
+</script>
+
+<style scoped></style>
+
+```
+
+```java
+   rules: [
+      {
+        pattern: /^(?:[1-9]\d?|[0-0]\d{2}|100)$/,
+        message: '充电枪数量为1~100之间的整数',
+        trigger: 'blur',
+      },
+    ],
+```
+
