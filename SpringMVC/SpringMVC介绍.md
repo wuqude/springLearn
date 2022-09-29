@@ -7,7 +7,7 @@
 >* 学会使用PostMan工具发送请求和数据
 >* 掌握SpringMVC如何接收请求、数据和响应结果
 >* 掌握RESTful风格及其使用
->* 完成基于RESTful的案例编写
+>* 完成基于RESTful的案例编写==
 
 SpringMVC是隶属于Spring框架的一部分，主要是用来进行Web开发，是对Servlet进行了封装。
 
@@ -1959,3 +1959,830 @@ public String dataParam(Date date,
 * 前端传递字符串，后端使用Integer接收
 * 后台需要的数据类型有很多中
 * 在数据的传递过程中存在很多类型的转换
+
+问:谁来做这个类型转换?
+
+答:SpringMVC
+
+问:SpringMVC是如何实现类型转换的?
+
+答:SpringMVC中提供了很多类型转换接口和实现类
+
+在框架中，有一些类型转换接口，其中有:
+
+* (1) Converter接口
+
+```java
+/**
+*	S: the source type
+*	T: the target type
+*/
+public interface Converter<S, T> {
+    @Nullable
+    //该方法就是将从页面上接收的数据(S)转换成我们想要的数据类型(T)返回
+    T convert(S source);
+}
+```
+
+**注意:Converter所属的包为`org.springframework.core.convert.converter`**
+
+Converter接口的实现类
+
+![1630496385398](allPicture/1630496385398.png)
+
+框架中有提供很多对应Converter接口的实现类，用来实现不同数据类型之间的转换,如:
+
+请求参数年龄数据（String→Integer）
+
+日期格式转换（String → Date）
+
+* (2) HttpMessageConverter接口
+
+该接口是实现对象与JSON之间的转换工作
+
+**==注意:SpringMVC的配置类把@EnableWebMvc当做标配配置上去，不要省略==**
+
+### 4.6 响应
+
+SpringMVC接收到请求和数据后，进行一些了的处理，当然这个处理可以是转发给Service，Service层再调用Dao层完成的，不管怎样，处理完以后，都需要将结果告知给用户。
+
+比如:根据用户ID查询用户信息、查询用户列表、新增用户等。
+
+对于响应，主要就包含两部分内容：
+
+* 响应页面
+* 响应数据
+  * 文本数据
+  * json数据
+
+因为异步调用是目前常用的主流方式，所以我们需要更关注的就是如何返回JSON数据，对于其他只需要认识了解即可。
+
+#### 4.6.1 环境准备
+
+- 创建一个Web的Maven项目
+
+- pom.xml添加Spring依赖
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  
+  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+  
+    <groupId>com.itheima</groupId>
+    <artifactId>springmvc_05_response</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>war</packaging>
+  
+    <dependencies>
+      <dependency>
+        <groupId>javax.servlet</groupId>
+        <artifactId>javax.servlet-api</artifactId>
+        <version>3.1.0</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-webmvc</artifactId>
+        <version>5.2.10.RELEASE</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.9.0</version>
+      </dependency>
+    </dependencies>
+  
+    <build>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.tomcat.maven</groupId>
+          <artifactId>tomcat7-maven-plugin</artifactId>
+          <version>2.1</version>
+          <configuration>
+            <port>80</port>
+            <path>/</path>
+          </configuration>
+        </plugin>
+      </plugins>
+    </build>
+  </project>
+  
+  ```
+
+- 创建对应的配置类
+
+  ```java
+  public class ServletContainersInitConfig extends AbstractAnnotationConfigDispatcherServletInitializer {
+      protected Class<?>[] getRootConfigClasses() {
+          return new Class[0];
+      }
+  
+      protected Class<?>[] getServletConfigClasses() {
+          return new Class[]{SpringMvcConfig.class};
+      }
+  
+      protected String[] getServletMappings() {
+          return new String[]{"/"};
+      }
+  
+      //乱码处理
+      @Override
+      protected Filter[] getServletFilters() {
+          CharacterEncodingFilter filter = new CharacterEncodingFilter();
+          filter.setEncoding("UTF-8");
+          return new Filter[]{filter};
+      }
+  }
+  
+  @Configuration
+  @ComponentScan("com.itheima.controller")
+  //开启json数据类型自动转换
+  @EnableWebMvc
+  public class SpringMvcConfig {
+  }
+  
+  
+  ```
+
+- 编写模型类User
+
+  ```java
+  public class User {
+      private String name;
+      private int age;
+      //getter...setter...toString省略
+  }
+  ```
+
+- webapp下创建page.jsp
+
+  ```jsp
+  <html>
+  <body>
+  <h2>Hello Spring MVC!</h2>
+  </body>
+  </html>
+  ```
+
+- 编写UserController
+
+  ```java
+  @Controller
+  public class UserController {
+  
+      
+  }
+  ```
+
+最终创建好的项目结构如下:
+
+![1630497314131](allPicture/1630497314131.png)
+
+#### 4.6.2 响应页面[了解]
+
+##### 步骤1:设置返回页面
+
+```java
+@Controller
+public class UserController {
+    
+    @RequestMapping("/toJumpPage")
+    //注意
+    //1.此处不能添加@ResponseBody,如果加了该注入，会直接将page.jsp当字符串返回前端
+    //2.方法需要返回String
+    public String toJumpPage(){
+        System.out.println("跳转页面");
+        return "page.jsp";
+    }
+    
+}
+```
+
+##### 步骤2:启动程序测试
+
+此处涉及到页面跳转，所以不适合采用PostMan进行测试，直接打开浏览器，输入
+
+`http://localhost/toJumpPage`
+
+![1630497496785](allPicture/1630497496785.png)
+
+#### 4.6.3 返回文本数据[了解]
+
+##### 步骤1:设置返回文本内容
+
+```java
+@Controller
+public class UserController {
+    
+   	@RequestMapping("/toText")
+	//注意此处该注解就不能省略，如果省略了,会把response text当前页面名称去查找，如果没有回报404错误
+    @ResponseBody
+    public String toText(){
+        System.out.println("返回纯文本数据");
+        return "response text";
+    }
+    
+}
+```
+
+##### 步骤2:启动程序测试
+
+此处不涉及到页面跳转，因为我们现在发送的是GET请求，可以使用浏览器也可以使用PostMan进行测试，输入地址`http://localhost/toText`访问
+
+![1630497741388](allPicture/1630497741388.png)
+
+#### 4.6.4 响应JSON数据
+
+##### 响应POJO对象
+
+```java
+@Controller
+public class UserController {
+    
+    @RequestMapping("/toJsonPOJO")
+    @ResponseBody
+    public User toJsonPOJO(){
+        System.out.println("返回json对象数据");
+        User user = new User();
+        user.setName("itcast");
+        user.setAge(15);
+        return user;
+    }
+    
+}
+```
+
+返回值为实体类对象，设置返回值为实体类类型，即可实现返回对应对象的json数据，需要依赖==@ResponseBody==注解和==@EnableWebMvc==注解
+
+重新启动服务器，访问`http://localhost/toJsonPOJO`
+
+![1630497954896](allPicture/1630497954896.png)
+
+##### 响应POJO集合对象
+
+```java
+@Controller
+public class UserController {
+    
+    @RequestMapping("/toJsonList")
+    @ResponseBody
+    public List<User> toJsonList(){
+        System.out.println("返回json集合数据");
+        User user1 = new User();
+        user1.setName("传智播客");
+        user1.setAge(15);
+
+        User user2 = new User();
+        user2.setName("黑马程序员");
+        user2.setAge(12);
+
+        List<User> userList = new ArrayList<User>();
+        userList.add(user1);
+        userList.add(user2);
+
+        return userList;
+    }
+    
+}
+
+```
+
+重新启动服务器，访问`http://localhost/toJsonList`
+
+![1630498084047](allPicture/1630498084047.png)
+
+#### 知识点1：@ResponseBody
+
+| 名称     | @ResponseBody                                                |
+| -------- | ------------------------------------------------------------ |
+| 类型     | ==方法\类注解==                                              |
+| 位置     | SpringMVC控制器方法定义上方和控制类上                        |
+| 作用     | 设置当前控制器返回值作为响应体,<br/>写在类上，该类的所有方法都有该注解功能 |
+| 相关属性 | pattern：指定日期时间格式字符串                              |
+
+**说明:**
+
+* 该注解可以写在类上或者方法上
+* 写在类上就是该类下的所有方法都有@ReponseBody功能
+* 当方法上有@ReponseBody注解后
+  * 方法的返回值为字符串，会将其作为文本内容直接响应给前端
+  * 方法的返回值为对象，会将对象转换成JSON响应给前端
+
+此处又使用到了类型转换，内部还是通过Converter接口的实现类完成的，所以Converter除了前面所说的功能外，它还可以实现:
+
+* 对象转Json数据(POJO -> json)
+* 集合转Json数据(Collection -> json)
+
+## 5，Rest风格
+
+对于Rest风格，我们需要学习的内容包括:
+
+* REST简介
+* REST入门案例
+* REST快速开发
+* 案例:基于RESTful页面数据交互
+
+### 5.1 REST简介
+
+* ==REST==（Representational State Transfer），表现形式状态转换,它是一种软件架构==风格==
+
+  当我们想表示一个网络资源的时候，可以使用两种方式:
+
+  * 传统风格资源描述形式
+    * `http://localhost/user/getById?id=1` 查询id为1的用户信息
+    * `http://localhost/user/saveUser` 保存用户信息
+  * REST风格描述形式
+    * `http://localhost/user/1` 
+    * `http://localhost/user`
+
+### 5.2 RESTful入门案例
+
+#### 5.2.1 环境准备
+
+- 创建一个Web的Maven项目
+
+- pom.xml添加Spring依赖
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  
+  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+  
+    <groupId>com.itheima</groupId>
+    <artifactId>springmvc_06_rest</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>war</packaging>
+  
+    <dependencies>
+      <dependency>
+        <groupId>javax.servlet</groupId>
+        <artifactId>javax.servlet-api</artifactId>
+        <version>3.1.0</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-webmvc</artifactId>
+        <version>5.2.10.RELEASE</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.9.0</version>
+      </dependency>
+    </dependencies>
+  
+    <build>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.tomcat.maven</groupId>
+          <artifactId>tomcat7-maven-plugin</artifactId>
+          <version>2.1</version>
+          <configuration>
+            <port>80</port>
+            <path>/</path>
+          </configuration>
+        </plugin>
+      </plugins>
+    </build>
+  </project>
+  
+  ```
+
+- 创建对应的配置类
+
+  ```java
+  public class ServletContainersInitConfig extends AbstractAnnotationConfigDispatcherServletInitializer {
+      protected Class<?>[] getRootConfigClasses() {
+          return new Class[0];
+      }
+  
+      protected Class<?>[] getServletConfigClasses() {
+          return new Class[]{SpringMvcConfig.class};
+      }
+  
+      protected String[] getServletMappings() {
+          return new String[]{"/"};
+      }
+  
+      //乱码处理
+      @Override
+      protected Filter[] getServletFilters() {
+          CharacterEncodingFilter filter = new CharacterEncodingFilter();
+          filter.setEncoding("UTF-8");
+          return new Filter[]{filter};
+      }
+  }
+  
+  @Configuration
+  @ComponentScan("com.itheima.controller")
+  //开启json数据类型自动转换
+  @EnableWebMvc
+  public class SpringMvcConfig {
+  }
+  
+  
+  ```
+
+- 编写模型类User和Book
+
+  ```java
+  public class User {
+      private String name;
+      private int age;
+      //getter...setter...toString省略
+  }
+  
+  public class Book {
+      private String name;
+      private double price;
+       //getter...setter...toString省略
+  }
+  ```
+
+- 编写UserController和BookController
+
+  ```java
+  @Controller
+  public class UserController {
+  	@RequestMapping("/save")
+      @ResponseBody
+      public String save(@RequestBody User user) {
+          System.out.println("user save..."+user);
+          return "{'module':'user save'}";
+      }
+  
+      @RequestMapping("/delete")
+      @ResponseBody
+      public String delete(Integer id) {
+          System.out.println("user delete..." + id);
+          return "{'module':'user delete'}";
+      }
+  
+      @RequestMapping("/update")
+      @ResponseBody
+      public String update(@RequestBody User user) {
+          System.out.println("user update..." + user);
+          return "{'module':'user update'}";
+      }
+  
+      @RequestMapping("/getById")
+      @ResponseBody
+      public String getById(Integer id) {
+          System.out.println("user getById..." + id);
+          return "{'module':'user getById'}";
+      }
+  
+      @RequestMapping("/findAll")
+      @ResponseBody
+      public String getAll() {
+          System.out.println("user getAll...");
+          return "{'module':'user getAll'}";
+      }
+  }
+  
+  
+  @Controller
+  public class BookController {
+      
+  	@RequestMapping(value = "/books",method = RequestMethod.POST)
+      @ResponseBody
+      public String save(@RequestBody Book book){
+          System.out.println("book save..." + book);
+          return "{'module':'book save'}";
+      }
+  
+      @RequestMapping(value = "/books/{id}",method = RequestMethod.DELETE)
+      @ResponseBody
+      public String delete(@PathVariable Integer id){
+          System.out.println("book delete..." + id);
+          return "{'module':'book delete'}";
+      }
+  
+      @RequestMapping(value = "/books",method = RequestMethod.PUT)
+      @ResponseBody
+      public String update(@RequestBody Book book){
+          System.out.println("book update..." + book);
+          return "{'module':'book update'}";
+      }
+  
+      @RequestMapping(value = "/books/{id}",method = RequestMethod.GET)
+      @ResponseBody
+      public String getById(@PathVariable Integer id){
+          System.out.println("book getById..." + id);
+          return "{'module':'book getById'}";
+      }
+  
+      @RequestMapping(value = "/books",method = RequestMethod.GET)
+      @ResponseBody
+      public String getAll(){
+          System.out.println("book getAll...");
+          return "{'module':'book getAll'}";
+      }
+      
+  }
+  ```
+
+最终创建好的项目结构如下:
+
+![1630503741455](allPicture/1630503741455.png)
+
+#### 5.2.2 思路分析
+
+> 需求:将之前的增删改查替换成RESTful的开发方式。
+>
+> 1.之前不同的请求有不同的路径,现在要将其修改为统一的请求路径
+>
+> 修改前: 新增: /save ,修改: /update,删除 /delete...
+>
+> 修改后: 增删改查: /users
+>
+> 2.根据GET查询、POST新增、PUT修改、DELETE删除对方法的请求方式进行限定
+>
+> 3.发送请求的过程中如何设置请求参数?
+
+#### 5.2.3 修改RESTful风格
+
+##### 新增
+
+```java
+@Controller
+public class UserController {
+	//设置当前请求方法为POST，表示REST风格中的添加操作
+    @RequestMapping(value = "/users",method = RequestMethod.POST)
+    @ResponseBody
+    public String save() {
+        System.out.println("user save...");
+        return "{'module':'user save'}";
+    }
+}
+```
+
+* 将请求路径更改为`/users`
+
+  * 访问该方法使用 POST: `http://localhost/users`
+
+* 使用method属性限定该方法的访问方式为`POST`
+
+  * 如果发送的不是POST请求，比如发送GET请求，则会报错
+
+    ![1630505392070](allPicture/1630505392070.png)
+
+##### 删除
+
+```java
+@Controller
+public class UserController {
+    //设置当前请求方法为DELETE，表示REST风格中的删除操作
+	@RequestMapping(value = "/users",method = RequestMethod.DELETE)
+    @ResponseBody
+    public String delete(Integer id) {
+        System.out.println("user delete..." + id);
+        return "{'module':'user delete'}";
+    }
+}
+```
+
+* 将请求路径更改为`/users`
+  - 访问该方法使用 DELETE: `http://localhost/users`
+
+访问成功，但是删除方法没有携带所要删除数据的id,所以针对RESTful的开发，如何携带数据参数?
+
+###### 传递路径参数
+
+前端发送请求的时候使用:`http://localhost/users/1`,路径中的`1`就是我们想要传递的参数。
+
+后端获取参数，需要做如下修改:
+
+* 修改@RequestMapping的value属性，将其中修改为`/users/{id}`，目的是和路径匹配
+* 在方法的形参前添加@PathVariable注解
+
+```java
+@Controller
+public class UserController {
+    //设置当前请求方法为DELETE，表示REST风格中的删除操作
+	@RequestMapping(value = "/users/{id}",method = RequestMethod.DELETE)
+    @ResponseBody
+    public String delete(@PathVariable Integer id) {
+        System.out.println("user delete..." + id);
+        return "{'module':'user delete'}";
+    }
+}
+```
+
+**思考如下两个问题:**
+
+(1)如果方法形参的名称和路径`{}`中的值不一致，该怎么办?
+
+![1630506231379](allPicture/1630506231379.png)
+
+(2)如果有多个参数需要传递该如何编写?
+
+前端发送请求的时候使用:`http://localhost/users/1/tom`,路径中的`1`和`tom`就是我们想要传递的两个参数。
+
+后端获取参数，需要做如下修改:
+
+```java
+@Controller
+public class UserController {
+    //设置当前请求方法为DELETE，表示REST风格中的删除操作
+	@RequestMapping(value = "/users/{id}/{name}",method = RequestMethod.DELETE)
+    @ResponseBody
+    public String delete(@PathVariable Integer id,@PathVariable String name) {
+        System.out.println("user delete..." + id+","+name);
+        return "{'module':'user delete'}";
+    }
+}
+```
+
+##### 修改
+
+```java
+@Controller
+public class UserController {
+    //设置当前请求方法为PUT，表示REST风格中的修改操作
+    @RequestMapping(value = "/users",method = RequestMethod.PUT)
+    @ResponseBody
+    public String update(@RequestBody User user) {
+        System.out.println("user update..." + user);
+        return "{'module':'user update'}";
+    }
+}
+```
+
+- 将请求路径更改为`/users`
+
+  - 访问该方法使用 PUT: `http://localhost/users`
+
+- 访问并携带参数:
+
+  ![1630506507096](allPicture/1630506507096.png)
+
+##### 根据ID查询
+
+```java
+@Controller
+public class UserController {
+    //设置当前请求方法为GET，表示REST风格中的查询操作
+    @RequestMapping(value = "/users/{id}" ,method = RequestMethod.GET)
+    @ResponseBody
+    public String getById(@PathVariable Integer id){
+        System.out.println("user getById..."+id);
+        return "{'module':'user getById'}";
+    }
+}
+```
+
+将请求路径更改为`/users`
+
+- 访问该方法使用 GET: `http://localhost/users/666`
+
+##### 查询所有
+
+```java
+@Controller
+public class UserController {
+    //设置当前请求方法为GET，表示REST风格中的查询操作
+    @RequestMapping(value = "/users" ,method = RequestMethod.GET)
+    @ResponseBody
+    public String getAll() {
+        System.out.println("user getAll...");
+        return "{'module':'user getAll'}";
+    }
+}
+```
+
+将请求路径更改为`/users`
+
+- 访问该方法使用 GET: `http://localhost/users`
+
+**小结**
+
+RESTful入门案例，我们需要学习的内容如下:
+
+(1)设定Http请求动作(动词)
+
+@RequestMapping(value="",==method== = RequestMethod.==POST|GET|PUT|DELETE==)
+
+(2)设定请求参数(路径变量)
+
+@RequestMapping(value="/users/=={id}==",method = RequestMethod.DELETE)
+
+@ReponseBody
+
+public String delete(==@PathVariable== Integer ==id==){
+
+}
+
+#### 知识点1：@PathVariable
+
+| 名称 | @PathVariable                                                |
+| ---- | ------------------------------------------------------------ |
+| 类型 | ==形参注解==                                                 |
+| 位置 | SpringMVC控制器方法形参定义前面                              |
+| 作用 | 绑定路径参数与处理器方法形参间的关系，要求路径参数名与形参名一一对应 |
+
+关于接收参数，我们学过三个注解`@RequestBody`、`@RequestParam`、`@PathVariable`,这三个注解之间的区别和应用分别是什么?
+
+* 区别
+  * @RequestParam用于接收url地址传参或表单传参
+  * @RequestBody用于接收json数据
+  * @PathVariable用于接收路径参数，使用{参数名称}描述路径参数
+* 应用
+  * 后期开发中，发送请求参数超过1个时，以json格式为主，@RequestBody应用较广
+  * 如果发送非json格式数据，选用@RequestParam接收请求参数
+  * 采用RESTful进行开发，当参数数量较少时，例如1个，可以采用@PathVariable接收请求路径变量，通常用于传递id值
+
+### 5.3 RESTful快速开发
+
+做完了RESTful的开发，你会发现==好麻烦==，麻烦在哪?
+
+![1630507339724](allPicture/1630507339724.png)
+
+问题1：每个方法的@RequestMapping注解中都定义了访问路径/books，重复性太高。
+
+问题2：每个方法的@RequestMapping注解中都要使用method属性定义请求方式，重复性太高。
+
+问题3：每个方法响应json都需要加上@ResponseBody注解，重复性太高。
+
+对于上面所提的这三个问题，具体该如何解决?
+
+```java
+@RestController //@Controller + ReponseBody
+@RequestMapping("/books")
+public class BookController {
+    
+	//@RequestMapping(method = RequestMethod.POST)
+    @PostMapping
+    public String save(@RequestBody Book book){
+        System.out.println("book save..." + book);
+        return "{'module':'book save'}";
+    }
+
+    //@RequestMapping(value = "/{id}",method = RequestMethod.DELETE)
+    @DeleteMapping("/{id}")
+    public String delete(@PathVariable Integer id){
+        System.out.println("book delete..." + id);
+        return "{'module':'book delete'}";
+    }
+
+    //@RequestMapping(method = RequestMethod.PUT)
+    @PutMapping
+    public String update(@RequestBody Book book){
+        System.out.println("book update..." + book);
+        return "{'module':'book update'}";
+    }
+
+    //@RequestMapping(value = "/{id}",method = RequestMethod.GET)
+    @GetMapping("/{id}")
+    public String getById(@PathVariable Integer id){
+        System.out.println("book getById..." + id);
+        return "{'module':'book getById'}";
+    }
+
+    //@RequestMapping(method = RequestMethod.GET)
+    @GetMapping
+    public String getAll(){
+        System.out.println("book getAll...");
+        return "{'module':'book getAll'}";
+    }
+    
+}
+```
+
+对于刚才的问题，我们都有对应的解决方案：
+
+问题1：每个方法的@RequestMapping注解中都定义了访问路径/books，重复性太高。
+
+```java
+将@RequestMapping提到类上面，用来定义所有方法共同的访问路径。
+```
+
+问题2：每个方法的@RequestMapping注解中都要使用method属性定义请求方式，重复性太高。
+
+```
+使用@GetMapping  @PostMapping  @PutMapping  @DeleteMapping代替
+```
+
+#### 知识点1：@RestController
+
+| 名称 | @RestController                                              |
+| ---- | ------------------------------------------------------------ |
+| 类型 | ==类注解==                                                   |
+| 位置 | 基于SpringMVC的RESTful开发控制器类定义上方                   |
+| 作用 | 设置当前控制器类为RESTful风格，<br/>等同于@Controller与@ResponseBody两个注解组合功能 |
+
+#### 知识点2：@GetMapping @PostMapping @PutMapping @DeleteMapping
+
+| 名称     | @GetMapping @PostMapping @PutMapping @DeleteMapping          |
+| -------- | ------------------------------------------------------------ |
+| 类型     | ==方法注解==                                                 |
+| 位置     | 基于SpringMVC的RESTful开发控制器方法定义上方                 |
+| 作用     | 设置当前控制器方法请求访问路径与请求动作，每种对应一个请求动作，<br/>例如@GetMapping对应GET请求 |
+| 相关属性 | value（默认）：请求访问路径                                  |
+
+### 5.4 RESTful案例
