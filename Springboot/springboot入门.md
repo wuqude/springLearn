@@ -1140,3 +1140,378 @@ server:
 > ==注意：==
 >
 > SpringBoot 2.5.0版本存在一个bug，我们在使用这个版本时，需要在 `jar` 所在位置的 `config` 目录下创建一个任意名称的文件夹
+
+## 3，SpringBoot整合junit
+
+回顾 `Spring` 整合 `junit`
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = SpringConfig.class)
+public class UserServiceTest {
+    
+    @Autowired
+    private BookService bookService;
+    
+    @Test
+    public void testSave(){
+        bookService.save();
+    }
+}
+```
+
+使用 `@RunWith` 注解指定运行器，使用 `@ContextConfiguration` 注解来指定配置类或者配置文件。而 `SpringBoot` 整合 `junit` 特别简单，分为以下三步完成
+
+* 在测试类上添加 `SpringBootTest` 注解
+* 使用 `@Autowired` 注入要测试的资源
+* 定义测试方法进行测试
+
+### 3.1  环境准备
+
+创建一个名为 `springboot_07_test` 的 `SpringBoot` 工程，工程目录结构如下
+
+![image-20221008095207331](allPicture/image-20221008095207331.png)
+
+在 `com.itheima.service` 下创建 `BookService` 接口，内容如下
+
+```java
+public interface BookService {
+    public void save();
+}
+```
+
+在 `com.itheima.service.impl` 包写创建一个 `BookServiceImpl` 类，使其实现 `BookService` 接口，内容如下
+
+```java
+@Service
+public class BookServiceImpl implements BookService {
+    @Override
+    public void save() {
+        System.out.println("book service is running ...");
+    }
+}
+```
+
+### 3.2  编写测试类
+
+在 `test/java` 下创建 `com.itheima` 包，在该包下创建测试类，将 `BookService` 注入到该测试类中
+
+```java
+@SpringBootTest
+class Springboot07TestApplicationTests {
+
+    @Autowired
+    private BookService bookService;
+
+    @Test
+    public void save() {
+        bookService.save();
+    }
+}
+```
+
+> ==注意：==这里的引导类所在包必须是测试类所在包及其子包。
+>
+> 例如：
+>
+> * 引导类所在包是 `com.itheima`
+> * 测试类所在包是 `com.itheima`
+>
+> 如果不满足这个要求的话，就需要在使用 `@SpringBootTest` 注解时，使用 `classes` 属性指定引导类的字节码对象。如 `@SpringBootTest(classes = Springboot07TestApplication.class)`
+
+## 4，SpringBoot整合mybatis
+
+### 4.1  回顾Spring整合Mybatis
+
+`Spring` 整合 `Mybatis` 需要定义很多配置类
+
+* `SpringConfig` 配置类
+
+  * 导入 `JdbcConfig` 配置类
+
+  * 导入 `MybatisConfig` 配置类
+
+    ```java
+    @Configuration
+    @ComponentScan("com.itheima")
+    @PropertySource("classpath:jdbc.properties")
+    @Import({JdbcConfig.class,MyBatisConfig.class})
+    public class SpringConfig {
+    }
+    
+    ```
+
+* `JdbcConfig` 配置类
+
+  * 定义数据源（加载properties配置项：driver、url、username、password）
+
+    ```java
+    public class JdbcConfig {
+        @Value("${jdbc.driver}")
+        private String driver;
+        @Value("${jdbc.url}")
+        private String url;
+        @Value("${jdbc.username}")
+        private String userName;
+        @Value("${jdbc.password}")
+        private String password;
+    
+        @Bean
+        public DataSource getDataSource(){
+            DruidDataSource ds = new DruidDataSource();
+            ds.setDriverClassName(driver);
+            ds.setUrl(url);
+            ds.setUsername(userName);
+            ds.setPassword(password);
+            return ds;
+        }
+    }
+    ```
+
+* `MybatisConfig` 配置类
+
+  * 定义 `SqlSessionFactoryBean`
+
+  * 定义映射配置
+
+    ```java
+    @Bean
+    public MapperScannerConfigurer getMapperScannerConfigurer(){
+        MapperScannerConfigurer msc = new MapperScannerConfigurer();
+        msc.setBasePackage("com.itheima.dao");
+        return msc;
+    }
+    
+    @Bean
+    public SqlSessionFactoryBean getSqlSessionFactoryBean(DataSource dataSource){
+        SqlSessionFactoryBean ssfb = new SqlSessionFactoryBean();
+        ssfb.setTypeAliasesPackage("com.itheima.domain");
+        ssfb.setDataSource(dataSource);
+        return ssfb;
+    }
+    
+    ```
+
+### 4.2  SpringBoot整合mybatis
+
+#### 4.2.1  创建模块
+
+* 创建新模块，选择 `Spring Initializr`，并配置模块相关基础信息
+
+<img src="allPicture/image-20210917215913779.png" alt="image-20210917215913779" style="zoom:80%;" />
+
+* 选择当前模块需要使用的技术集（MyBatis、MySQL）
+
+  <img src="allPicture/image-20210917215958091.png" alt="image-20210917215958091" style="zoom:80%;" />
+
+#### 4.2.2  定义实体类
+
+在 `com.itheima.domain` 包下定义实体类 `Book`，内容如下
+
+```java
+public class Book {
+    private Integer id;
+    private String name;
+    private String type;
+    private String description;
+    
+    //setter and  getter
+    
+    //toString
+}
+```
+
+#### 4.2.3  定义dao接口
+
+在 `com.itheima.dao` 包下定义 `BookDao` 接口，内容如下
+
+```java
+public interface BookDao {
+    @Select("select * from tbl_book where id = #{id}")
+    public Book getById(Integer id);
+}
+```
+
+#### 4.2.4  定义测试类
+
+在 `test/java` 下定义包 `com.itheima` ，在该包下测试类，内容如下
+
+```java
+@SpringBootTest
+class Springboot08MybatisApplicationTests {
+
+	@Autowired
+	private BookDao bookDao;
+
+	@Test
+	void testGetById() {
+		Book book = bookDao.getById(1);
+		System.out.println(book);
+	}
+}
+```
+
+#### 4.2.5  编写配置
+
+我们代码中并没有指定连接哪儿个数据库，用户名是什么，密码是什么。所以这部分需要在 `SpringBoot` 的配置文件中进行配合。
+
+在 `application.yml` 配置文件中配置如下内容
+
+```java
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ssm_db
+    username: root
+    password: root
+```
+
+#### 4.2.6  测试
+
+运行测试方法，我们会看到如下错误信息
+
+<img src="allPicture/image-20210917221427930.png" alt="image-20210917221427930" style="zoom:70%;" />
+
+错误信息显示在 `Spring` 容器中没有 `BookDao` 类型的 `bean`。为什么会出现这种情况呢？
+
+原因是 `Mybatis` 会扫描接口并创建接口的代码对象交给 `Spring` 管理，但是现在并没有告诉 `Mybatis` 哪个是 `dao` 接口。而我们要解决这个问题需要在`BookDao` 接口上使用 `@Mapper` ，`BookDao` 接口改进为
+
+```java
+@Mapper
+public interface BookDao {
+    @Select("select * from tbl_book where id = #{id}")
+    public Book getById(Integer id);
+}
+```
+
+==注意：==
+
+`SpringBoot` 版本低于2.4.3(不含)，Mysql驱动版本大于8.0时，需要在url连接串中配置时区 `jdbc:mysql://localhost:3306/ssm_db?serverTimezone=UTC`，或在MySQL数据库端配置时区解决此问题
+
+#### 4.2.7  使用Druid数据源
+
+现在我们并没有指定数据源，`SpringBoot` 有默认的数据源，我们也可以指定使用 `Druid` 数据源，按照以下步骤实现
+
+* 导入 `Druid` 依赖
+
+```java
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.1.16</version>
+</dependency>
+```
+
+- 在 `application.yml` 配置文件配置
+
+  可以通过 `spring.datasource.type` 来配置使用什么数据源。配置文件内容可以改进为
+
+```java
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ssm_db?serverTimezone=UTC
+    username: root
+    password: root
+    type: com.alibaba.druid.pool.DruidDataSource
+```
+
+## 5，案例
+
+`SpringBoot` 到这就已经学习完毕，接下来我们将学习 `SSM` 时做的三大框架整合的案例用 `SpringBoot` 来实现一下。我们完成这个案例基本是将之前做的拷贝过来，修改成 `SpringBoot` 的即可，主要从以下几部分完成
+
+1. pom.xml
+
+   配置起步依赖，必要的资源坐标(druid)
+
+2. application.yml
+
+   设置数据源、端口等
+
+1. 配置类
+
+   全部删除
+
+2. dao
+
+   设置@Mapper
+
+3. 测试类
+
+4. 页面
+
+   放置在resources目录下的static目录中
+
+### 5.1  创建工程
+
+创建 `SpringBoot` 工程，在创建工程时需要勾选 `web`、`mysql`、`mybatis`，工程目录结构如下
+
+![image-20221008102336118](allPicture/image-20221008102336118.png)
+
+由于我们工程中使用到了 `Druid` ，所以需要导入 `Druid` 的坐标
+
+```xml
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.1.16</version>
+</dependency>
+```
+
+### 5.2  代码拷贝
+
+将 `springmvc_11_page` 工程中的 `java` 代码及测试代码连同包拷贝到 `springboot_09_ssm` 工程，按照下图进行拷贝
+
+![image-20221008102613245](allPicture/image-20221008102613245.png)
+
+需要修改的内容如下：
+
+* `Springmvc_11_page` 中 `config` 包下的是配置类，而 `SpringBoot` 工程不需要这些配置类，所以这些可以直接删除
+
+* `dao` 包下的接口上在拷贝到 `springboot_09-ssm` 工程中需要在接口中添加 `@Mapper` 注解
+
+* `BookServiceTest` 测试需要改成 `SpringBoot` 整合 `junit` 的
+
+  ```java
+  @SpringBootTest
+  public class BookServiceTest {
+  
+      @Autowired
+      private BookService bookService;
+  
+      @Test
+      public void testGetById(){
+          Book book = bookService.getById(2);
+          System.out.println(book);
+      }
+  
+      @Test
+      public void testGetAll(){
+          List<Book> all = bookService.getAll();
+          System.out.println(all);
+      }
+  }
+  ```
+
+
+### 5.3  配置文件
+
+在 `application.yml` 配置文件中需要配置如下内容
+
+* 服务的端口号
+* 连接数据库的信息
+
+* 数据源
+
+```yaml
+server:
+  port: 80
+
+spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ssm_db #?servierTimezone=UTC
+    username: root
+    password: root
+```
