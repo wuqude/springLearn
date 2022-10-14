@@ -575,3 +575,368 @@ public class CategoryController {
 
 <img src="../../../Java资料/1 瑞吉外卖项目/04-讲义/瑞吉外卖-day03/assets/image-20210801220637396.png" alt="image-20210801220637396" style="zoom:80%;" /> 
 
+### 4.2 前端页面分析
+
+在前端页面中，点击 "删除" 按钮，就会触发定义的方法，然后往服务端发送异步请求，并传递参数id，执行删除分类操作。
+
+ <img src="../../../Java资料/1 瑞吉外卖项目/04-讲义/瑞吉外卖-day03/assets/image-20210801221049176.png" alt="image-20210801221049176" style="zoom:80%;" />  
+
+删除操作的具体执行流程如下： 
+
+1). 点击删除，页面发送ajax请求，将参数(id)提交到服务端
+
+2). 服务端Controller接收页面提交的数据并调用Service删除数据
+
+3). Service调用Mapper操作数据库
+
+<img src="../../../Java资料/1 瑞吉外卖项目/04-讲义/瑞吉外卖-day03/assets/image-20210801221343539.png" alt="image-20210801221343539" style="zoom:80%;" /> 
+
+
+
+从上述的分析中，我们可以得到请求的信息如下：
+
+| 请求     | 说明                    |
+| -------- | ----------------------- |
+| 请求方式 | DELETE                  |
+| 请求路径 | /category               |
+| 请求参数 | ?id=1395291114922618881 |
+
+
+
+
+
+### 4.3 代码实现
+
+在CategoryController中增加根据ID删除的方法，在方法中接收页面传递参数id，然后执行删除操作。
+
+```java
+/**
+ * 根据id删除分类
+ * @param id
+ * @return
+ */
+@DeleteMapping
+public R<String> delete(Long id){
+    log.info("删除分类，id为：{}",id);
+    categoryService.removeById(id);
+    return R.success("分类信息删除成功");
+}
+```
+
+
+
+### 4.4 功能测试
+
+基本的删除操作代码实现完毕后，重启项目，进行测试。可以通过debug断点调试进行测试，同时结合浏览器监控工具查看请求和响应的具体数据。
+
+
+
+### 4.5 功能完善
+
+#### 4.5.1 思路分析
+
+在上述的测试中，我们看到分类数据是可以正常删除的。但是并没有检查删除的分类是否关联了菜品或者套餐，所以我们需要进行功能完善。完善后的逻辑为：
+
+- 根据当前分类的ID，查询该分类下是否存在菜品，如果存在，则提示错误信息
+- 根据当前分类的ID，查询该分类下是否存在套餐，如果存在，则提示错误信息
+- 执行正常的删除分类操作
+
+
+
+
+
+那么在这里又涉及到我们后面要用到的两张表结构 dish(菜品表) 和 setmeal(套餐表)。具体的表结构，我们目前先了解一下： 
+
+<img src="../../../Java资料/1 瑞吉外卖项目/04-讲义/瑞吉外卖-day03/assets/image-20210802001302912.png" alt="image-20210802001302912" style="zoom:80%;" /> 
+
+<img src="../../../Java资料/1 瑞吉外卖项目/04-讲义/瑞吉外卖-day03/assets/image-20210802001348928.png" alt="image-20210802001348928" style="zoom:80%;" /> 
+
+#### 4.5.2 准备工作
+
+**1). 准备菜品(Dish)及套餐(Setmeal)实体类(课程资料中直接拷贝)**
+
+所属包: com.itheima.reggie.entity
+
+```java
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.TableField;
+import lombok.Data;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ 菜品
+ */
+@Data
+public class Dish implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private Long id;
+
+    //菜品名称
+    private String name;
+
+    //菜品分类id
+    private Long categoryId;
+
+    //菜品价格
+    private BigDecimal price;
+
+    //商品码
+    private String code;
+
+    //图片
+    private String image;
+
+    //描述信息
+    private String description;
+
+    //0 停售 1 起售
+    private Integer status;
+
+    //顺序
+    private Integer sort;
+
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+
+    @TableField(fill = FieldFill.INSERT)
+    private Long createUser;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private Long updateUser;
+}
+```
+
+```java
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.TableField;
+import lombok.Data;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ * 套餐
+ */
+@Data
+public class Setmeal implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private Long id;
+
+    //分类id
+    private Long categoryId;
+
+    //套餐名称
+    private String name;
+
+    //套餐价格
+    private BigDecimal price;
+
+    //状态 0:停用 1:启用
+    private Integer status;
+
+    //编码
+    private String code;
+
+    //描述信息
+    private String description;
+
+    //图片
+    private String image;
+
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+
+    @TableField(fill = FieldFill.INSERT)
+    private Long createUser;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private Long updateUser;
+}
+```
+
+
+
+**2). Mapper接口DishMapper和SetmealMapper**
+
+所属包: com.itheima.reggie.mapper
+
+```java
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.itheima.reggie.entity.Dish;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface DishMapper extends BaseMapper<Dish> {
+}
+```
+
+```java
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.itheima.reggie.entity.Setmeal;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface SetmealMapper extends BaseMapper<Setmeal> {
+}
+```
+
+
+
+
+
+**3). Service接口DishService和SetmealService**
+
+所属包: com.itheima.reggie.service
+
+```java
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.itheima.reggie.entity.Dish;
+
+public interface DishService extends IService<Dish> {
+}
+```
+
+```java
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.itheima.reggie.entity.Setmeal;
+
+public interface SetmealService extends IService<Setmeal> {
+}
+```
+
+
+
+**4). Service实现类DishServiceImpl和SetmealServiceImpl**
+
+```java
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.itheima.reggie.entity.Dish;
+import com.itheima.reggie.mapper.DishMapper;
+import com.itheima.reggie.service.DishService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+@Service
+@Slf4j
+public class DishServiceImpl extends ServiceImpl<DishMapper,Dish> implements DishService {
+}
+```
+
+```java
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.itheima.reggie.entity.Setmeal;
+import com.itheima.reggie.mapper.SetmealMapper;
+import com.itheima.reggie.service.SetmealService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+@Service
+@Slf4j
+public class SetmealServiceImpl extends ServiceImpl<SetmealMapper,Setmeal> implements SetmealService {
+}
+```
+
+
+
+#### 4.5.3 代码实现
+
+**1). 创建自定义异常**
+
+在业务逻辑操作过程中,如果遇到一些业务参数、操作异常的情况下，我们直接抛出此异常。
+
+所在包: com.itheima.reggie.common
+
+```java
+/**
+ * 自定义业务异常类
+ */
+public class CustomException extends RuntimeException {
+    public CustomException(String message){
+        super(message);
+    }
+}
+```
+
+
+
+**2). 在CategoryService中扩展remove方法**
+
+```java
+public interface CategoryService extends IService<Category> {
+	//根据ID删除分类
+    public void remove(Long id);
+}
+```
+
+
+
+**3). 在CategoryServiceImpl中实现remove方法**
+
+```java
+@Autowired
+private DishService dishService;
+@Autowired
+private SetmealService setmealService;
+
+/**
+ * 根据id删除分类，删除之前需要进行判断
+ * @param id
+ */
+@Override
+public void remove(Long id) {
+    //添加查询条件，根据分类id进行查询菜品数据
+    LambdaQueryWrapper<Dish> dishLambdaQueryWrapper = new LambdaQueryWrapper<>();
+    dishLambdaQueryWrapper.eq(Dish::getCategoryId,id);
+    int count1 = dishService.count(dishLambdaQueryWrapper);
+    //如果已经关联，抛出一个业务异常
+    if(count1 > 0){
+        throw new CustomException("当前分类下关联了菜品，不能删除");//已经关联菜品，抛出一个业务异常
+    }
+
+    //查询当前分类是否关联了套餐，如果已经关联，抛出一个业务异常
+    LambdaQueryWrapper<Setmeal> setmealLambdaQueryWrapper = new LambdaQueryWrapper<>();
+    setmealLambdaQueryWrapper.eq(Setmeal::getCategoryId,id);
+    int count2 = setmealService.count(setmealLambdaQueryWrapper);
+    if(count2 > 0){
+        throw new CustomException("当前分类下关联了套餐，不能删除");//已经关联套餐，抛出一个业务异常
+    }
+
+    //正常删除分类
+    super.removeById(id);
+}
+```
+
+
+
+那么在上述的业务逻辑中，当分类下关联的有菜品或者套餐时，我们在业务代码中抛出了自定义异常，并且在异常中封装了错误提示信息，那这个错误提示信息如何提示给页面呢？
+
+异常抛出之后，会被异常处理器捕获，我们只需要在异常处理器中捕获这一类的异常，然后给页面返回对应的提示信息即可。
+
+
+
+**4). 在GlobalExceptionHandler中处理自定义异常**
+
+在全局异常处理器中增加方法，用于捕获我们自定义的异常 CustomException
+
+```java
+/**
+ * 异常处理方法
+ * @return
+ */
+@ExceptionHandler(CustomException.class)
+public R<String> exceptionHandler(CustomException ex){
+    log.error(ex.getMessage());
+    return R.error(ex.getMessage());
+}
+```
+
